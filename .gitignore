@@ -179,3 +179,10 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# 本项目运行时产物（不入库）
+data/index/
+data/uploads/
+checkpoints/
+*.pt
+*.pth
