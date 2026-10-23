@@ -37,25 +37,35 @@ def get_collection():
     return client.get_or_create_collection(COLLECTION_NAME, embedding_function=ef)
 
 
+def _read_manual(path: Path) -> str:
+    """按后缀读取手册文本：PDF 走 pypdf，Markdown/文本文件直接读。"""
+    if path.suffix.lower() == ".pdf":
+        reader = PdfReader(str(path))
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    return path.read_text(encoding="utf-8")
+
+
 def ingest(manual_dir: Path | None = None) -> int:
     manual_dir = manual_dir or config.MANUAL_DIR
-    pdfs = sorted(Path(manual_dir).glob("*.pdf"))
-    if not pdfs:
-        print(f"[manual_loader] {manual_dir} 下没有 PDF，请先放入检修手册")
+    manuals = sorted(
+        p for pattern in ("*.pdf", "*.md", "*.txt")
+        for p in Path(manual_dir).glob(pattern)
+    )
+    if not manuals:
+        print(f"[manual_loader] {manual_dir} 下没有手册文件（支持 pdf/md/txt）")
         return 0
 
     collection = get_collection()
     ids, docs, metas = [], [], []
-    for pdf in pdfs:
-        reader = PdfReader(str(pdf))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    for manual in manuals:
+        text = _read_manual(manual)
         for idx, chunk in enumerate(_split_text(text)):
-            ids.append(f"{pdf.stem}-{idx}")
+            ids.append(f"{manual.stem}-{idx}")
             docs.append(chunk)
-            metas.append({"source": pdf.name, "chunk": idx})
+            metas.append({"source": manual.name, "chunk": idx})
 
     collection.upsert(ids=ids, documents=docs, metadatas=metas)
-    print(f"[manual_loader] 入库完成：{len(ids)} 个片段，来自 {len(pdfs)} 份手册")
+    print(f"[manual_loader] 入库完成：{len(ids)} 个片段，来自 {len(manuals)} 份手册")
     return len(ids)
 
 
